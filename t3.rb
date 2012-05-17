@@ -41,6 +41,8 @@ class Game
     #  p 'Please choose X or O.'
     #end
     #@human == 'X' ? @cpu = 'O' : @cpu = 'X'
+    
+    
     @human = 'X'
     @cpu = 'O'
     p "So you\'re #{@human}, eh? Prepare to lose!"
@@ -55,45 +57,33 @@ class Game
 	
 	
 	def human_move
+	  p 'Human\'s turn'
 	  @dest = ''
 	  
-	  p 'Where would you like to move?'
-	  @dest = gets.chomp
 	  while @dest == ''
-      @dest = gets.chomp
-      if @spots.values_at(@dest).length > 0
+      p 'Where would you like to move?'
+	    @dest = gets.chomp
+      if @spots.values_at(@dest).first == @human or @spots.values_at(@dest).first == @cpu
         p 'That place is already taken. Please try again!'
         @dest = ''
+      elsif @spots.values_at(@dest).to_s == '[nil]'
+        p 'Please choose a valid play tile.'
+        @dest = ''
+      else
+        p 'Spot not taken, move ready.'
       end
     end
-    
-    while @spots.values_at(@dest).to_s == '[nil]'
-      p 'Please choose a valid play tile.'
-      @dest = gets.chomp
-    end
 	  
-	  return 'Spot taken!' if @spots[@dest] != ''
-  	@spots.keys.each do |a|
-  	  @spots[@dest] = @human if @spots[@dest] == ''
-    end
-    p 'You placed an X on ' + @dest
-    
-    self.update_board
-    p 'Starting computer\'s turn'
+    self.update_board(@human)
     self.computer_move
   end
   
   
   def computer_move
-    self.check_board
     @dest.clear
-    p 'Computer board check complete, initiating turn logic'
+    p 'Computer\'s turn'
 		
-		
-		
-		
-		
-		
+
 		# 1 - Prioritize blocks and wins
 		#=================================
 		@data.keys.each do |a|
@@ -104,7 +94,7 @@ class Game
         row << @data[a][i][1]
       end
               
-      p human_count = row.count(@human)
+      human_count = row.count(@human)
       cpu_count = row.count(@cpu)
 
       # must block a win or win, so dest will be set
@@ -123,6 +113,7 @@ class Game
     
     
     # 2 - Prioritize zones and change points, then evaluate
+    #======================================================
     if @dest == ''
       if @turn_number == 2
         p 'Second turn detected'
@@ -144,55 +135,44 @@ class Game
     
 		# 3 - Pick a zone stop
     if @dest == ''
-      p 'No blocks or wins detected, so picking a zone'
+      p 'No blocks or wins detected, so picking the highest potential spot'
 		  @scoreboard = Hash.new
-      i=0
-		  @zones['zones'].each do |a|
-		    #p "Zone name: #{a[0]}"
-		    #p "Spots: #{a[1]['spots']}"
-		    #p "Points: #{a[1]['points']}"
-		    @scoreboard.store(i, Hash['score', a[1]['points'], 'zone', a[0]])
-		    i=i+1
-      end
+		  
+		    # see how many blank rows are in each square
+	      # loop through all blank spots
 
-	    @scoreboard.sort_by{ |k, v| v['score'] }.reverse.each do |a|
+	      @spots.select{|k,v| v == ''}.each do |a|
+	        #array..floor
+	        p current_spot = a[0]
+	        current_spot_score = 0
+	        #
+	        #loop through every block in the same row
+	        @data.each do |b|
+	          if b[1].select{|k,v| k == current_spot}.count == 1 && b[1].select{|k,v| v == ''}.count == 3
+	            #p 'Blank row detected'
+	            current_spot_score = current_spot_score + 1
+	          end
+	        end
+	        @scoreboard.store(current_spot, current_spot_score)
+	      end
 	      
-	      # go through each zone (pre_dest_zone)
-	      pre_dest_zone = a[1]['zone']
-	      @spots.select{|k,v| v == ''}.each do |b|
-          # for each empty spot on board (b[0]):
-          if @zones['zones'][pre_dest_zone]['spots'].count(b[0]) > 0
-            break b if @dest_zone = pre_dest_zone
-          end
-        end
-	      
-	      # 3.1 Middle zone
-	      @zones['zones'][@dest_zone]['spots']
-		    zone_spots = @zones['zones'][@dest_zone]['spots'][0]
-		    while @dest == ''
-		      @spots.select{|k,v| k == zone_spots}.each do |a|
-		        @dest = a[0] if zone_spots != ''
-		      end
-		    end
-        if @spots.key(zone_spots)
-          @dest = zone_spots
-        end
-        
-	    end
+	      p 'Displaying scoreboard'
+	      p @scoreboard
+	      p @dest = @scoreboard.key(@scoreboard.values.max)
     end
     
-    return 'Spot taken!' if @spots[@dest] != ''
-  	@spots.keys.each do |a|
-  	  @spots[@dest] = @cpu if @spots[@dest] == ''
-    end
-    
-    self.update_board
+    self.update_board(@cpu)
     self.human_move
   end
   
   
   
-  def update_board
+  def update_board(player_move)
+    
+    @spots.keys.each do |a|
+  	  @spots[@dest] = player_move if @spots[@dest] == ''
+    end
+    
     @spots.each do |a|
       @data.keys.each do |b|
         # loop 3 times per row
@@ -206,6 +186,8 @@ class Game
     self.win_check  
     self.print_board
   end
+  
+  
   
   def win_check
     p 'Checking for a win...'
@@ -222,7 +204,10 @@ class Game
         raise RuntimeError, '~~~~~~~~~~~~~~~~~~~~~~~~~~ Human wins! ~~~~~~~~~~~~~~~~~~~~~~~~~~'
       elsif cpu_count == 3
         self.print_board
-        raise RuntimeError, '~~~~~~~~~~~~~~~~~~~~~~~~~~ Computer wins, ~~~~~~~~~~~~~~~~~~~~~~~~~~'
+        raise RuntimeError, '~~~~~~~~~~~~~~~~~~~~~~~~~~ Computer wins! ~~~~~~~~~~~~~~~~~~~~~~~~~~'
+      elsif @spots.select{|k,v| v == ''}.count == 0
+        self.print_board
+        raise RuntimeError, '~~~~~~~~~~~~~~~~~~~~~~~~~~ DRAW! ~~~~~~~~~~~~~~~~~~~~~~~~~~'
       end
     end
     p 'No winner found'
@@ -234,13 +219,16 @@ class Game
     i = 1
     p '_______'
     @spots.each do |a|
-      value = ' ' if a[1] == ''
-      value = a[1] if a[1] != ''
+      if a[1] == ''
+        value = ' ' 
+      elsif a[1] != ''
+        value = a[1]
+      end
       row = row + "|#{value}"
       if i%3 == 0 && i != 0
         p row + "|"
         p '_______'
-        row = ''
+        row.clear
       end
       i = i+1
     end

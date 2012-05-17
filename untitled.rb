@@ -121,6 +121,42 @@
 		}
 		
 		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		   @scoreboard.sort_by{ |k, v| v['score'] }.reverse.each do |a|
+	      
+	      # go through each zone (pre_dest_zone)
+	      pre_dest_zone = a[1]['zone']
+	      @spots.select{|k,v| v == ''}.each do |b|
+          # for each empty spot on board (b[0]):
+          if @zones['zones'][pre_dest_zone]['spots'].count(b[0]) > 0
+            break b if @dest_zone = pre_dest_zone
+          end
+        end
+	      
+	      # 3.1 Middle zone
+	      @zones['zones'][@dest_zone]['spots']
+		    zone_spots = @zones['zones'][@dest_zone]['spots'][0]
+		    while @dest == ''
+		      @spots.select{|k,v| k == zone_spots}.each do |a|
+		        @dest = a[0] if zone_spots != ''
+		      end
+		    end
+        if @spots.key(zone_spots)
+          @dest = zone_spots
+        end
+        
+	    end
+    end
+		
   
   
   
