@@ -1,10 +1,7 @@
 require 'yaml'
 
-
 class Game
     
-
-
   def initialize
 		# initialize the game board (3 horizontal, 3 vertical, 2 diagonal)
 		
@@ -16,13 +13,22 @@ class Game
 		  '20' => '', '21' => '', '22' => ''
 		}
 		
+		@zones = Hash[
+		  'corner', ['00','02','20','22'],
+		  'middle', ['11'],
+		  'edge', ['01','10','12','21']		  		  
+		]
+		
 		@data = Hash[
+			#Horizontal rows
 		  '1', [['00', ''], ['01', ''], ['02', '']],
 	 		'2', [['10', ''], ['11', ''], ['12', '']],
 			'3', [['20', ''], ['21', ''], ['22', '']],
+			#Vertical rows
 			'4', [['00', ''], ['10', ''], ['20', '']],
 			'5', [['01', ''], ['11', ''], ['21', '']],
 			'6', [['02', ''], ['12', ''], ['22', '']],
+			# Diagonal rows
 			'7', [['00', ''], ['11', ''], ['22', '']],
 			'8', [['20', ''], ['11', ''], ['02', '']]
 		]
@@ -31,28 +37,25 @@ class Game
     p 'New game started!'
     self.print_board
     
-    #p 'What is your name?'
-    #@name = gets.chomp
-    #p "Okay #{@name}, choose X or O!"
     p "Choose X or O! (Remember that X goes first)"
-    #while @human != 'X'
-    #  @human = gets.chomp
-    #  p 'Please choose X or O.'
-    #end
-    #@human == 'X' ? @cpu = 'O' : @cpu = 'X'
+    if @human != 'X' || @human != 'O'
+      @human = gets.chomp
+      p 'Please choose X or O.'
+    end
+    @human == 'X' ? @cpu = 'O' : @cpu = 'X'
     
-    
-    @human = 'X'
-    @cpu = 'O'
     p "So you\'re #{@human}, eh? Prepare to lose!"
-    self.human_move
+    @human == 'X' ? self.human_move : self.computer_move
+    
   end
 
 	
 	def save
+	  
     File.open(File.join(File.dirname(__FILE__) , 'data.yml'), 'w') {|f| f.write(@data.to_yaml) }
     File.open(File.join(File.dirname(__FILE__) , 'spots.yml'), 'w') {|f| f.write(@spots.to_yaml) }
     return 'Game saved.'
+    
 	end
 	
 	
@@ -69,8 +72,6 @@ class Game
       elsif @spots.values_at(@dest).to_s == '[nil]'
         p 'Please choose a valid play tile.'
         @dest = ''
-      else
-        p 'Spot not taken, move ready.'
       end
     end
 	  
@@ -80,14 +81,13 @@ class Game
   
   
   def computer_move
-    @dest.clear
+    @dest = ''
     p 'Computer\'s turn'
-		
 
 		# 1 - Prioritize winning moves
 		#==============================
 		@data.keys.each do |board_row|
-		  
+
       row = Array.new
       
       # loop 3 times per row and add the player marker to the row array
@@ -110,7 +110,6 @@ class Game
     end
     
     
-    
     # 2 - Prioritize blocking opponent wins
 		#=======================================
 		if @dest == ''
@@ -126,12 +125,11 @@ class Game
             
         human_count = row.count(@human)
         cpu_count = row.count(@cpu)
-
+        
 	      if ( human_count == 2 and cpu_count == 0 )
 	        @data[board_row].each do |b|
             if b[1].length == 0
 	            @dest = b[0]
-	            p "Winning move: #{@dest}"
               break board_row
             end
           end
@@ -139,18 +137,52 @@ class Game
       end
       
     end
-    
+
+
+    # 3 - How to deal with a lightsaber (xoo,oox) or a sandwich(oxo,xox)!
+		#===================================================
+		if @dest == ''
+		  
+		  @data.keys.each do |board_row|
+							
+        row = Array.new
+      
+        # loop 3 times per row and add the player marker to the row array
+        for i in 0..2
+          row << @data[board_row][i][1]
+        end
+            
+        human_count = row.count(@human)
+        cpu_count = row.count(@cpu)
+
+				if board_row.to_i > 6
+					if ( human_count == 2 and cpu_count == 1 )
+						open_zone_spots = Array.new
+						@zones['edge'].each do |spot|
+						  open_zone_spots << spot if @spots.select{|k,v| k==spot and v==''}.count > 0
+						end
+						@dest = open_zone_spots.shuffle.first if open_zone_spots.count > 0
+					elsif ( human_count == 1 and cpu_count == 2 )
+					  open_zone_spots = Array.new
+						@zones['corner'].each do |spot|
+						  open_zone_spots << spot if @spots.select{|k,v| k==spot and v==''}.count > 0
+						end
+						@dest = open_zone_spots.shuffle.first if open_zone_spots.count > 0
+					end
+				end
+				
+      end
+    end
     
     
 		# 2 - Prioritize spots belonging to the highest number of blank rows
 		#===================================================================
     if @dest == ''
-      p 'No blocks or wins detected, so picking the highest potential spot'
 		  @scoreboard = Hash.new
 		  
 	      # loop through all blank spots and add 1 to the score for each blank row the spot belongs to
 	      @spots.select{|k,v| v == ''}.each do |a|
-	        p current_spot = a[0]
+	        current_spot = a[0]
 	        current_spot_score = 0
 
 	        #loop through every spot in a row
@@ -168,8 +200,9 @@ class Game
   end
   
   
-  
   def update_board(player_move)
+    
+    self.end_game("Incorrect destination detected: #{@dest}") if !@spots.has_key?(@dest)
     
     @spots.keys.each do |a|
   	  @spots[@dest] = player_move if @spots[@dest] == ''
@@ -189,12 +222,12 @@ class Game
     p 'Board update and save complete.'
     self.win_check
     self.print_board
+    
   end
   
   
-  
   def win_check
-    p 'Checking for a win...'
+    
     @data.keys.each do |a|
       row = ''
       # loop 3 times per row
@@ -211,14 +244,21 @@ class Game
         end_game('Draw!')
       end
     end
-    p 'No winner found'
+    
 	end
+	
 	
 	def end_game(message)
 	  self.print_board
-    raise RuntimeError, "~~~~~~~~~~~~~~~~~~~~~~~~~~ #{message} ~~~~~~~~~~~~~~~~~~~~~~~~~~"
+	  p message
+	  p 'Would you like to play again? (y or n)'
+	  play_again = gets.chomp
+	  if play_again == 'y' or play_again == 'Y'
+	    g = Game.new
+	  else
+	    raise 'Thank you for playing!'
+	  end
 	end
-  
   
   
   def print_board
@@ -235,14 +275,11 @@ class Game
       row = row + "|#{value}"
       if i%3 == 0 && i != 0
         p row + "|"
-        p '_______'
+        p '-------'
         row.clear
       end
       i = i+1
     end
   end
   
-  
-    
 end
-
